@@ -10,6 +10,7 @@ extern "C"
 #include "vc.h"
 }
 
+using namespace cv;
 int main(void)
 {
 	// Vídeo
@@ -55,6 +56,10 @@ int main(void)
 
 	cv::Mat frame;
 	int i = 0;
+	int nLaranjas;
+
+	OVC *blobs;
+
 	while (key != 'q')
 	{
 		/* Leitura de uma frame do vídeo */
@@ -89,6 +94,10 @@ int main(void)
 		IVC *image_hsv = vc_image_new(video.width, video.height, 3, 255);
 		IVC *segmentated = vc_image_new(video.width, video.height, 1, 255);
 		IVC *eroded = vc_image_new(video.width, video.height, 1, 255);
+		IVC *dilated = vc_image_new(video.width, video.height, 1, 255);
+		IVC *binary = vc_image_new(video.width, video.height, 1, 255);
+
+		IVC *labled_image = vc_image_new(video.width, video.height, 1, 255);
 
 		// Copia dados de imagem da estrutura cv::Mat para uma estrutura IVC
 		memcpy(image->data, frame.data, video.width * video.height * 3);
@@ -96,11 +105,13 @@ int main(void)
 		vc_bgr_to_rgb(image);
 		vc_rgb_to_hsv(image, image_hsv);
 
-		vc_hsv_segmentation(image_hsv, segmentated, 10, 27, 45, 100, 20, 100);
+		vc_hsv_segmentation(image_hsv, segmentated, 10, 25, 40, 100, 40, 100);
 
-		vc_gray_erode(segmentated, eroded, 5);
+		vc_gray_to_binary(segmentated, binary, 200);
 
-		if (i == 530 || i == 260 || i == 160 || i == 430 || i == 330)
+		vc_binary_erode(binary, eroded, 5);
+
+		if (i == 530 || i == 260 || i == 160 || i == 430 || i == 353)
 		{
 			char buffer[100];
 			char buffer1[100];
@@ -116,9 +127,44 @@ int main(void)
 			vc_write_image(buffer3, eroded);
 		}
 
-		// Copia dados de imagem da estrutura IVC para uma estrutura cv::Mat
+		blobs = vc_binary_blob_labelling(eroded, labled_image, &nLaranjas);
+
+		vc_binary_blob_info(labled_image, blobs, nLaranjas);
+
+		// for (int i = 0; i < nLaranjas; i++)
+		// {
+		// 	printf("---------------------------------------------\n");
+		// 	printf("Box Width: %d\n", blobs[i].width);
+		// 	printf("Box height: %d\n", blobs[i].height);
+		// 	printf("area: %d\n", blobs[i].area);
+		// 	printf("xc: %d\n", blobs[i].xc);
+		// 	printf("x: %d\n", blobs[i].x);
+		// 	printf("yc: %d\n", blobs[i].yc);
+		// 	printf("y: %d\n", blobs[i].y);
+		// 	printf("Perimeter: %d\n", blobs[i].perimeter);
+		// 	printf("Lable: %d\n", blobs[i].label);
+		// 	printf("---------------------------------------------\n");
+		// }"Box Width: %d\n,Box height: %d\narea: %d\nxc: %d\nx: %d\nyc: %d\ny: %d\nPerimeter: %d\nLable: %d\n"
+
 		vc_bgr_to_rgb(image);
+
+		// Copia dados de imagem da estrutura IVC para uma estrutura cv::Mat
 		memcpy(frame.data, image->data, video.width * video.height * 3);
+
+		for (int i = 0; i < nLaranjas; i++)
+		{
+			if (blobs[i].area > 250)
+			{
+				cv::Rect rect(blobs[i].x, blobs[i].y, blobs[i].width, blobs[i].height);
+				rectangle(frame, rect, (255, 255, 255), 2, LINE_8);
+				char buffer[100];
+				snprintf(buffer, 100, "Box Width: %d\n,Box height: %d\narea: %d\nxc: %d\nx: %d\nyc: %d\ny: %d\nPerimeter: %d\nLabel: %d\n",
+								 blobs[i].width, blobs[i].height, blobs[i].area, blobs[i].xc, blobs[i].x, blobs[i].yc, blobs[i].y, blobs[i].perimeter, blobs[i].label);
+
+				putText(frame, buffer, Point(blobs[i].x, blobs[i].y - 10), 0, 0.7, (0, 255, 0));
+			}
+		}
+
 		// Liberta a memória da imagem IVC que havia sido criada
 		vc_image_free(image);
 
@@ -131,7 +177,22 @@ int main(void)
 		key = cv::waitKey(1);
 		i++;
 	}
+	printf("%d\n", nLaranjas);
 
+	for (int i = 0; i < nLaranjas; i++)
+	{
+		printf("---------------------------------------------\n");
+		printf("Box Width: %d\n", blobs[i].width);
+		printf("Box height: %d\n", blobs[i].height);
+		printf("area: %d\n", blobs[i].area);
+		printf("xc: %d\n", blobs[i].xc);
+		printf("x: %d\n", blobs[i].x);
+		printf("yc: %d\n", blobs[i].yc);
+		printf("y: %d\n", blobs[i].y);
+		printf("Perimeter: %d\n", blobs[i].perimeter);
+		printf("Lable: %d\n", blobs[i].label);
+		printf("---------------------------------------------\n");
+	}
 	/* Fecha a janela */
 	cv::destroyWindow("VC - VIDEO");
 
