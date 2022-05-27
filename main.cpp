@@ -5,12 +5,13 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/videoio.hpp>
 
-extern "C" {
+extern "C"
+{
 #include "vc.h"
 }
 
-
-int main(void) {
+int main(void)
+{
 	// Vídeo
 	char videofile[20] = "video.avi";
 	cv::VideoCapture capture;
@@ -30,10 +31,10 @@ int main(void) {
 	O ficheiro video.avi deverá estar localizado no mesmo directório que o ficheiro de código fonte.
 	*/
 	capture.open(videofile);
-	
+
 	/* Em alternativa, abrir captura de vídeo pela Webcam #0 */
-	//capture.open(0, cv::CAP_DSHOW); // Pode-se utilizar apenas capture.open(0);
-	
+	// capture.open(0, cv::CAP_DSHOW); // Pode-se utilizar apenas capture.open(0);
+
 	/* Verifica se foi possível abrir o ficheiro de vídeo */
 	if (!capture.isOpened())
 	{
@@ -51,15 +52,17 @@ int main(void) {
 
 	/* Cria uma janela para exibir o vídeo */
 	cv::namedWindow("VC - VIDEO", cv::WINDOW_AUTOSIZE);
-	
+
 	cv::Mat frame;
-  int i=0;
-	while (key != 'q') {
+	int i = 0;
+	while (key != 'q')
+	{
 		/* Leitura de uma frame do vídeo */
 		capture.read(frame);
 
 		/* Verifica se conseguiu ler a frame */
-		if (frame.empty()) break;
+		if (frame.empty())
+			break;
 
 		/* Número da frame a processar */
 		video.nframe = (int)capture.get(cv::CAP_PROP_POS_FRAMES);
@@ -78,32 +81,47 @@ int main(void) {
 		cv::putText(frame, str, cv::Point(20, 100), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 0, 0), 2);
 		cv::putText(frame, str, cv::Point(20, 100), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(255, 255, 255), 1);
 
-
 		// Faça o seu código aqui...
-		
+
 		// Cria uma nova imagem IVC
 		IVC *image = vc_image_new(video.width, video.height, 3, 255);
 		IVC *image_rgb = vc_image_new(video.width, video.height, 3, 255);
 		IVC *image_hsv = vc_image_new(video.width, video.height, 3, 255);
 		IVC *segmentated = vc_image_new(video.width, video.height, 1, 255);
+		IVC *eroded = vc_image_new(video.width, video.height, 1, 255);
 
 		// Copia dados de imagem da estrutura cv::Mat para uma estrutura IVC
 		memcpy(image->data, frame.data, video.width * video.height * 3);
 		// Executa uma função da nossa biblioteca vc
-    vc_bgr_to_rgb(image);
-    vc_rgb_to_hsv(image,image_hsv);
-      
-		vc_hsv_segmentation(image_hsv,segmentated,95,150,30,60,80,100);
-    char buffer[100];
-    snprintf(buffer,100,"./imgs/%i.ppm",i);
-    vc_write_image(buffer, image_hsv);
-    
+		vc_bgr_to_rgb(image);
+		vc_rgb_to_hsv(image, image_hsv);
+
+		vc_hsv_segmentation(image_hsv, segmentated, 10, 27, 45, 100, 20, 100);
+
+		vc_gray_erode(segmentated, eroded, 5);
+
+		if (i == 530 || i == 260 || i == 160 || i == 430 || i == 330)
+		{
+			char buffer[100];
+			char buffer1[100];
+			char buffer2[100];
+			char buffer3[100];
+			snprintf(buffer, 100, "./imgs/originals/%i.ppm", i);
+			vc_write_image(buffer, image);
+			snprintf(buffer1, 100, "./imgs/hsv/%i.ppm", i);
+			vc_write_image(buffer1, image_hsv);
+			snprintf(buffer2, 100, "./imgs/%i.ppm", i);
+			snprintf(buffer3, 100, "./imgs/%i_erode.ppm", i);
+			vc_write_image(buffer2, segmentated);
+			vc_write_image(buffer3, eroded);
+		}
+
 		// Copia dados de imagem da estrutura IVC para uma estrutura cv::Mat
 		vc_bgr_to_rgb(image);
 		memcpy(frame.data, image->data, video.width * video.height * 3);
 		// Liberta a memória da imagem IVC que havia sido criada
 		vc_image_free(image);
-		
+
 		// +++++++++++++++++++++++++
 
 		/* Exibe a frame */
@@ -111,7 +129,7 @@ int main(void) {
 
 		/* Sai da aplicação, se o utilizador premir a tecla 'q' */
 		key = cv::waitKey(1);
-    i++;
+		i++;
 	}
 
 	/* Fecha a janela */
