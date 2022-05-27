@@ -1,6 +1,7 @@
 CC = g++
-PROJECT = new_output
-SRC = new.cpp
+PROJECT = start
+SRC = main.cpp
 LIBS = `pkg-config --cflags --libs opencv4`
+MYLIB = vc.o
 $(PROJECT) : $(SRC)
-		$(CC) $(SRC) -o $(PROJECT) $(LIBS)
+		$(CC) $(SRC) $(MYLIB) -o $(PROJECT) $(LIBS)
