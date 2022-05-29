@@ -10,6 +10,36 @@ extern "C"
 #include "vc.h"
 }
 
+int draw_center(cv::Mat srcdst, int yc, int xc, int cross_height)
+{
+	IVC *temp = vc_image_new(srcdst.cols, srcdst.rows, 3, 255);
+	memcpy(temp->data, srcdst.data, srcdst.cols * srcdst.rows * 3);
+
+	unsigned char *datasrc = (unsigned char *)temp->data;
+	int x, y;
+	long int posY, posX;
+	int bytesperline = temp->bytesperline;
+	int channels = temp->channels;
+
+	for (int i = -cross_height; i <= cross_height; i++)
+	{
+		for (int y = -1; y <= 2; y++)
+		{
+			posY = (yc + i) * bytesperline + (xc + y) * channels;
+			posX = (yc + y) * bytesperline + (xc + i) * channels;
+			datasrc[posY] = 255;
+			datasrc[posY + 1] = 0;
+			datasrc[posY + 2] = 0;
+			datasrc[posX] = 255;
+			datasrc[posX + 1] = 0;
+			datasrc[posX + 2] = 0;
+		}
+	}
+
+	memcpy(srcdst.data, temp->data, srcdst.cols * srcdst.rows * 3);
+	return 1;
+}
+
 int getCalibre(int diametro)
 {
 	//! como fazer para calibre 0?
@@ -155,10 +185,8 @@ int main(void)
 		IVC *image = vc_image_new(video.width, video.height, 3, 255);
 		IVC *image_rgb = vc_image_new(video.width, video.height, 3, 255);
 		IVC *image_hsv = vc_image_new(video.width, video.height, 3, 255);
+		IVC *center_draw = vc_image_new(video.width, video.height, 3, 255);
 		IVC *segmentated = vc_image_new(video.width, video.height, 1, 255);
-		IVC *eroded = vc_image_new(video.width, video.height, 1, 255);
-		IVC *dilated = vc_image_new(video.width, video.height, 1, 255);
-		IVC *binary = vc_image_new(video.width, video.height, 1, 255);
 		IVC *open = vc_image_new(video.width, video.height, 1, 255);
 
 		IVC *labled_image = vc_image_new(video.width, video.height, 1, 255);
@@ -185,7 +213,6 @@ int main(void)
 		// aplicar o open pois existe algum ruido na imagem e convém remover com o erode
 		// mas também não se pode perder muito do tamanho da laranja neste processo
 		// sendo necessario aplicar um kernel igual para realizar o dilate
-
 		vc_binary_open(segmentated, open, 5, 5);
 
 		// realizar o labelling sobre a imagem segmentada
@@ -199,7 +226,6 @@ int main(void)
 
 		// Copia dados de imagem da estrutura IVC para uma estrutura cv::Mat
 		memcpy(frame.data, image->data, video.width * video.height * 3);
-
 		// iterar pelos blobs encontrados
 		for (int i = 0; i < nBlobs; i++)
 		{
@@ -265,6 +291,8 @@ int main(void)
 						numeroLaranja = nLaranjas;
 					}
 				}
+				// desenhar o centro de massa da laranja
+				draw_center(frame, blobs[i].yc, blobs[i].xc, 25);
 
 				// Rect é uma classe que guarda informações sobre um retangulo
 				// sendo estas:
@@ -281,12 +309,12 @@ int main(void)
 				char buffer1[100];
 				char buffer2[100];
 				snprintf(buffer, 100, "Laranja: %d   Calibre: %d", numeroLaranja, calibre);
-				snprintf(buffer1, 100, "Diametro: %d", blobs[i].width);
+				snprintf(buffer1, 100, "Perimetro: %d  Area: %d", blobs[i].perimeter, blobs[i].area);
 				snprintf(buffer2, 100, "NLaranjas: %d", nLaranjas);
 
 				// se o texto a escrever ficar fora dos limites da imagem para cima
 				// então este vai ser movido para baixo até haver espaço
-				if ((blobs[i].y - 70) < 0)
+				if ((blobs[i].y - 80) < 0)
 				{
 					// putText permite escrever texto em uma imagem
 					// putText necessita de:
@@ -297,9 +325,9 @@ int main(void)
 					//    - Foi dado também o inicio da imagem em y + a sua altura para se chegar o fim da imagem em y
 					//    - Foi também acrescentado valores para espaçar as diferentes strings
 					// -> Foi dado um tamanho de fonte de 0.7, uma cor azul e uma espessura de 2
-					putText(frame, buffer, Point(blobs[i].x, blobs[i].y + blobs[i].height + 80), 0, 0.7, (255, 255, 255), 2);
+					putText(frame, buffer, Point(blobs[i].x, blobs[i].y + blobs[i].height + 20), 0, 0.7, (255, 255, 255), 2);
 					putText(frame, buffer1, Point(blobs[i].x, blobs[i].y + blobs[i].height + 50), 0, 0.7, (255, 255, 255), 2);
-					putText(frame, buffer2, Point(blobs[i].x, blobs[i].y + blobs[i].height + 20), 0, 0.7, (255, 255, 255), 2);
+					putText(frame, buffer2, Point(blobs[i].x, blobs[i].y + blobs[i].height + 80), 0, 0.7, (255, 255, 255), 2);
 				}
 				else
 				{
@@ -315,9 +343,7 @@ int main(void)
 		vc_image_free(image_rgb);
 		vc_image_free(image_hsv);
 		vc_image_free(segmentated);
-		vc_image_free(eroded);
-		vc_image_free(dilated);
-		vc_image_free(binary);
+		vc_image_free(center_draw);
 		vc_image_free(open);
 		vc_image_free(labled_image);
 
