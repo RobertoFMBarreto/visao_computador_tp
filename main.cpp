@@ -10,6 +10,68 @@ extern "C"
 #include "vc.h"
 }
 
+int getCalibre(int diametro)
+{
+	//! como fazer para calibre 0?
+	if (diametro >= 100)
+	{
+		return 0;
+	}
+	else if (diametro >= 87 && diametro < 100)
+	{
+		return 1;
+	}
+	else if (diametro >= 84 && diametro < 96)
+	{
+		return 2;
+	}
+	else if (diametro >= 81 && diametro < 92)
+	{
+		return 3;
+	}
+	else if (diametro >= 77 && diametro < 88)
+	{
+		return 4;
+	}
+	else if (diametro >= 73 && diametro < 84)
+	{
+		return 5;
+	}
+	else if (diametro >= 70 && diametro < 80)
+	{
+		return 6;
+	}
+	else if (diametro >= 67 && diametro < 76)
+	{
+		return 7;
+	}
+	else if (diametro >= 64 && diametro < 73)
+	{
+		return 8;
+	}
+	else if (diametro >= 62 && diametro < 70)
+	{
+		return 9;
+	}
+	else if (diametro >= 60 && diametro < 68)
+	{
+		return 10;
+	}
+	else if (diametro >= 58 && diametro < 66)
+	{
+		return 11;
+	}
+	else if (diametro >= 56 && diametro < 63)
+	{
+		return 12;
+	}
+	else if (diametro >= 53 && diametro < 60)
+	{
+		return 13;
+	}
+	return -1;
+}
+
 using namespace cv;
 int main(void)
 {
@@ -56,12 +118,13 @@ int main(void)
 
 	cv::Mat frame;
 	int i = 0;
-	int nLaranjas;
-
-	OVC *blobs;
-
+	int nLaranjas = 0;
+	std::map<int, OVC> laranjas;
+	// std::map<int, OVC> laranjas;
 	while (key != 'q')
 	{
+		int nBlobs;
+		OVC *blobs;
 		/* Leitura de uma frame do vídeo */
 		capture.read(frame);
 
@@ -96,6 +159,7 @@ int main(void)
 		IVC *eroded = vc_image_new(video.width, video.height, 1, 255);
 		IVC *dilated = vc_image_new(video.width, video.height, 1, 255);
 		IVC *binary = vc_image_new(video.width, video.height, 1, 255);
+		IVC *open = vc_image_new(video.width, video.height, 1, 255);
 
 		IVC *labled_image = vc_image_new(video.width, video.height, 1, 255);
 
@@ -105,68 +169,125 @@ int main(void)
 		vc_bgr_to_rgb(image);
 		vc_rgb_to_hsv(image, image_hsv);
 
-		vc_hsv_segmentation(image_hsv, segmentated, 10, 25, 40, 100, 40, 100);
+		// vc_hsv_segmentation(image_hsv, segmentated, 10, 30, 80, 100, 27, 80);
+		vc_hsv_segmentation(image_hsv, segmentated, 10, 30, 75, 100, 25, 80);
 
-		vc_gray_to_binary(segmentated, binary, 200);
+		vc_binary_open(segmentated, open, 5, 5);
+		// vc_binary_erode(segmentated, eroded, 7);
+		blobs = vc_binary_blob_labelling(open, labled_image, &nBlobs);
 
-		vc_binary_erode(binary, eroded, 5);
+		vc_binary_blob_info(labled_image, blobs, nBlobs);
 
 		if (i == 530 || i == 260 || i == 160 || i == 430 || i == 353)
 		{
 			char buffer[100];
 			char buffer1[100];
-			char buffer2[100];
-			char buffer3[100];
-			snprintf(buffer, 100, "./imgs/originals/%i.ppm", i);
-			vc_write_image(buffer, image);
-			snprintf(buffer1, 100, "./imgs/hsv/%i.ppm", i);
-			vc_write_image(buffer1, image_hsv);
-			snprintf(buffer2, 100, "./imgs/%i.ppm", i);
-			snprintf(buffer3, 100, "./imgs/%i_erode.ppm", i);
-			vc_write_image(buffer2, segmentated);
-			vc_write_image(buffer3, eroded);
+			snprintf(buffer, 100, "./imgs/%i_seg.ppm", i);
+			snprintf(buffer1, 100, "./imgs/%i_op.ppm", i);
+			vc_write_image(buffer, segmentated);
+			vc_write_image(buffer1, open);
 		}
-
-		blobs = vc_binary_blob_labelling(eroded, labled_image, &nLaranjas);
-
-		vc_binary_blob_info(labled_image, blobs, nLaranjas);
-
-		// for (int i = 0; i < nLaranjas; i++)
-		// {
-		// 	printf("---------------------------------------------\n");
-		// 	printf("Box Width: %d\n", blobs[i].width);
-		// 	printf("Box height: %d\n", blobs[i].height);
-		// 	printf("area: %d\n", blobs[i].area);
-		// 	printf("xc: %d\n", blobs[i].xc);
-		// 	printf("x: %d\n", blobs[i].x);
-		// 	printf("yc: %d\n", blobs[i].yc);
-		// 	printf("y: %d\n", blobs[i].y);
-		// 	printf("Perimeter: %d\n", blobs[i].perimeter);
-		// 	printf("Lable: %d\n", blobs[i].label);
-		// 	printf("---------------------------------------------\n");
-		// }"Box Width: %d\n,Box height: %d\narea: %d\nxc: %d\nx: %d\nyc: %d\ny: %d\nPerimeter: %d\nLable: %d\n"
 
 		vc_bgr_to_rgb(image);
 
 		// Copia dados de imagem da estrutura IVC para uma estrutura cv::Mat
 		memcpy(frame.data, image->data, video.width * video.height * 3);
 
-		for (int i = 0; i < nLaranjas; i++)
+		for (int i = 0; i < nBlobs; i++)
 		{
-			if (blobs[i].area > 250)
+			int numeroLaranja;
+			if (blobs[i].height >= 280 && blobs[i].width >= 280)
 			{
-				cv::Rect rect(blobs[i].x, blobs[i].y, blobs[i].width, blobs[i].height);
-				rectangle(frame, rect, (255, 255, 255), 2, LINE_8);
-				char buffer[100];
-				snprintf(buffer, 100, "Box Width: %d\n,Box height: %d\narea: %d\nxc: %d\nx: %d\nyc: %d\ny: %d\nPerimeter: %d\nLabel: %d\n",
-								 blobs[i].width, blobs[i].height, blobs[i].area, blobs[i].xc, blobs[i].x, blobs[i].yc, blobs[i].y, blobs[i].perimeter, blobs[i].label);
+				int calibre = getCalibre((int)(blobs[i].width * 53) / 280);
+				if (nLaranjas == 0)
+				{
+					nLaranjas++;
+					laranjas[nLaranjas] = blobs[i];
+					numeroLaranja = nLaranjas;
+				}
+				else
+				{
+					// implementar codigo de detertar se dentro de bounding box de alguma laranja
+					bool existsLaranja = false;
+					for (auto &t : laranjas)
+					{
 
-				putText(frame, buffer, Point(blobs[i].x, blobs[i].y - 10), 0, 0.7, (0, 255, 0));
+						auto key = t.first;
+						auto laranja = t.second;
+						int blobXEnd = blobs[i].x + blobs[i].width;
+						int laranjaXEnd = laranja.x + laranja.width;
+
+						if (!((blobs[i].y + blobs[i].height) < laranja.y || blobs[i].y > (laranja.y + laranja.height)) &&
+								!(blobs[i].x > (laranja.x + laranja.width) || (blobs[i].x + blobs[i].width) < laranja.x))
+						{
+
+							laranjas[key] = blobs[i];
+							numeroLaranja = key;
+							existsLaranja = true;
+						}
+					}
+					if (!existsLaranja)
+					{
+						printf("NOVA LARANJA!!\n");
+						nLaranjas++;
+						laranjas[nLaranjas] = blobs[i];
+						numeroLaranja = nLaranjas;
+					}
+				}
+
+				// for (auto &t : laranjas)
+				// {
+				// 	auto key = t.first;
+				// 	auto value = t.second;
+				// 	std::cout
+				// 			<< t.first << " "
+				// 			<< t.second.x << " "
+				// 			<< t.second.width << "\n";
+				// }
+
+				cv::Rect rect(blobs[i].x, blobs[i].y, blobs[i].width, blobs[i].height);
+				rectangle(frame, rect, (255, 255, 255), 2);
+				char buffer[100];
+				char buffer1[100];
+				char buffer2[100];
+				snprintf(buffer, 100, "Laranja: %d   Calibre: %d", numeroLaranja, calibre);
+				snprintf(buffer1, 100, "Diametro: %d", blobs[i].width);
+				snprintf(buffer2, 100, "NLaranjas: %d", nLaranjas);
+				if ((blobs[i].y - 70) < 0)
+				{
+					putText(frame, buffer, Point(blobs[i].x, blobs[i].y + blobs[i].height + 80), 0, 0.7, (255, 255, 255), 2);
+					putText(frame, buffer1, Point(blobs[i].x, blobs[i].y + blobs[i].height + 50), 0, 0.7, (255, 255, 255), 2);
+					putText(frame, buffer2, Point(blobs[i].x, blobs[i].y + blobs[i].height + 20), 0, 0.7, (255, 255, 255), 2);
+				}
+				else
+				{
+
+					putText(frame, buffer, Point(blobs[i].x, blobs[i].y - 70), 0, 0.7, (255, 255, 255), 2);
+					putText(frame, buffer1, Point(blobs[i].x, blobs[i].y - 40), 0, 0.7, (255, 255, 255), 2);
+					putText(frame, buffer2, Point(blobs[i].x, blobs[i].y - 10), 0, 0.7, (255, 255, 255), 2);
+				}
 			}
+		}
+
+		if (i == 530 || i == 260 || (i <= 160 && i >= 140) || i == 430 || i == 353)
+		{
+			char buffer[100];
+			memcpy(image->data, frame.data, video.width * video.height * 3);
+			vc_bgr_to_rgb(image);
+			snprintf(buffer, 100, "./imgs/%i.ppm", i);
+			vc_write_image(buffer, image);
 		}
 
 		// Liberta a memória da imagem IVC que havia sido criada
 		vc_image_free(image);
+		vc_image_free(image_rgb);
+		vc_image_free(image_hsv);
+		vc_image_free(segmentated);
+		vc_image_free(eroded);
+		vc_image_free(dilated);
+		vc_image_free(binary);
+		vc_image_free(open);
+		vc_image_free(labled_image);
 
 		// +++++++++++++++++++++++++
 
@@ -177,22 +298,7 @@ int main(void)
 		key = cv::waitKey(1);
 		i++;
 	}
-	printf("%d\n", nLaranjas);
 
-	for (int i = 0; i < nLaranjas; i++)
-	{
-		printf("---------------------------------------------\n");
-		printf("Box Width: %d\n", blobs[i].width);
-		printf("Box height: %d\n", blobs[i].height);
-		printf("area: %d\n", blobs[i].area);
-		printf("xc: %d\n", blobs[i].xc);
-		printf("x: %d\n", blobs[i].x);
-		printf("yc: %d\n", blobs[i].yc);
-		printf("y: %d\n", blobs[i].y);
-		printf("Perimeter: %d\n", blobs[i].perimeter);
-		printf("Lable: %d\n", blobs[i].label);
-		printf("---------------------------------------------\n");
-	}
 	/* Fecha a janela */
 	cv::destroyWindow("VC - VIDEO");
 
