@@ -235,16 +235,6 @@ int main(void)
 					}
 				}
 
-				// for (auto &t : laranjas)
-				// {
-				// 	auto key = t.first;
-				// 	auto value = t.second;
-				// 	std::cout
-				// 			<< t.first << " "
-				// 			<< t.second.x << " "
-				// 			<< t.second.width << "\n";
-				// }
-
 				cv::Rect rect(blobs[i].x, blobs[i].y, blobs[i].width, blobs[i].height);
 				rectangle(frame, rect, (255, 255, 255), 2);
 				char buffer[100];
