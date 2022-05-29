@@ -10,6 +10,36 @@ extern "C"
 #include "vc.h"
 }
 
+int draw_center(cv::Mat srcdst, int yc, int xc, int cross_height)
+{
+	IVC *temp = vc_image_new(srcdst.cols, srcdst.rows, 3, 255);
+	memcpy(temp->data, srcdst.data, srcdst.cols * srcdst.rows * 3);
+
+	unsigned char *datasrc = (unsigned char *)temp->data;
+	int x, y;
+	long int posY, posX;
+	int bytesperline = temp->bytesperline;
+	int channels = temp->channels;
+
+	for (int i = -cross_height; i <= cross_height; i++)
+	{
+		for (int y = -1; y <= 2; y++)
+		{
+			posY = (yc + i) * bytesperline + (xc + y) * channels;
+			posX = (yc + y) * bytesperline + (xc + i) * channels;
+			datasrc[posY] = 255;
+			datasrc[posY + 1] = 0;
+			datasrc[posY + 2] = 0;
+			datasrc[posX] = 255;
+			datasrc[posX + 1] = 0;
+			datasrc[posX + 2] = 0;
+		}
+	}
+
+	memcpy(srcdst.data, temp->data, srcdst.cols * srcdst.rows * 3);
+	return 1;
+}
+
 int getCalibre(int diametro)
 {
 	//! como fazer para calibre 0?
@@ -124,7 +154,9 @@ int main(void)
 	while (key != 'q')
 	{
 		int nBlobs;
+		int nNegBlobs;
 		OVC *blobs;
+		OVC *negBlobs;
 		/* Leitura de uma frame do vídeo */
 		capture.read(frame);
 
@@ -149,17 +181,16 @@ int main(void)
 		cv::putText(frame, str, cv::Point(20, 100), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 0, 0), 2);
 		cv::putText(frame, str, cv::Point(20, 100), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(255, 255, 255), 1);
 
-		// Faça o seu código aqui...
-
 		// Cria uma nova imagem IVC
 		IVC *image = vc_image_new(video.width, video.height, 3, 255);
 		IVC *image_rgb = vc_image_new(video.width, video.height, 3, 255);
 		IVC *image_hsv = vc_image_new(video.width, video.height, 3, 255);
+		IVC *center_draw = vc_image_new(video.width, video.height, 3, 255);
 		IVC *segmentated = vc_image_new(video.width, video.height, 1, 255);
-		IVC *eroded = vc_image_new(video.width, video.height, 1, 255);
-		IVC *dilated = vc_image_new(video.width, video.height, 1, 255);
-		IVC *binary = vc_image_new(video.width, video.height, 1, 255);
 		IVC *open = vc_image_new(video.width, video.height, 1, 255);
+		IVC *negative = vc_image_new(video.width, video.height, 1, 255);
+		IVC *eroded = vc_image_new(video.width, video.height, 1, 255);
+		IVC *neg_blobs_labled = vc_image_new(video.width, video.height, 1, 255);
 
 		IVC *labled_image = vc_image_new(video.width, video.height, 1, 255);
 
@@ -180,26 +211,41 @@ int main(void)
 		// -> smax 100
 		// -> vmin 25
 		// -> vmax 80
-		vc_hsv_segmentation(image_hsv, segmentated, 10, 30, 75, 100, 25, 80);
+		// vc_hsv_segmentation(image_hsv, segmentated, 11, 20, 40, 100, 18, 80);
+		// vc_hsv_segmentation(image_hsv, segmentated, 11, 35, 40, 100, 18, 80);
+		vc_hsv_segmentation(image_hsv, segmentated, 11, 21, 45, 100, 20, 80);
 
 		// aplicar o open pois existe algum ruido na imagem e convém remover com o erode
 		// mas também não se pode perder muito do tamanho da laranja neste processo
 		// sendo necessario aplicar um kernel igual para realizar o dilate
+		vc_binary_open(segmentated, open, 9, 3);
 
-		vc_binary_open(segmentated, open, 5, 5);
+		memcpy(negative->data, open->data, video.width * video.height * 1);
+		vc_gray_negative(negative);
+		vc_binary_erode(negative, eroded, 7);
+
+		if (video.nframe == 160 || video.nframe == 260 || video.nframe == 360 || video.nframe == 440 || video.nframe == 460 || video.nframe == 530)
+		{
+			char buffer[100];
+			snprintf(buffer, 100, "./img_%d_neg.ppm", video.nframe);
+			vc_write_image(buffer, eroded);
+		}
 
 		// realizar o labelling sobre a imagem segmentada
 		blobs = vc_binary_blob_labelling(open, labled_image, &nBlobs);
 
+		negBlobs = vc_binary_blob_labelling(negative, neg_blobs_labled, &nNegBlobs);
+
 		// obter as informações sobre os blobs descobertos anteriormente
 		vc_binary_blob_info(labled_image, blobs, nBlobs);
+
+		vc_binary_blob_info(neg_blobs_labled, negBlobs, nNegBlobs);
 
 		// converter em bgr novamente
 		vc_bgr_to_rgb(image);
 
 		// Copia dados de imagem da estrutura IVC para uma estrutura cv::Mat
 		memcpy(frame.data, image->data, video.width * video.height * 3);
-
 		// iterar pelos blobs encontrados
 		for (int i = 0; i < nBlobs; i++)
 		{
@@ -210,6 +256,7 @@ int main(void)
 			{
 				// calcular o calibre da laranja tendo em conta o seu tamanho convertido em mm
 				int calibre = getCalibre((int)(blobs[i].width * 53) / 280);
+
 				// se ainda não tiverem sido detetadas laranjas então vamos inserir a primeira
 				if (nLaranjas == 0)
 				{
@@ -241,7 +288,7 @@ int main(void)
 						//		-> Se o blob não está à esquerda ou seja se este não termina antes do da laranja
 						//		-> Se o blob não está à direita ou seja se este não começa depois do termino da laranja
 						if (!((blobs[i].y + blobs[i].height) < laranja.y || blobs[i].y > (laranja.y + laranja.height)) &&
-								!(blobs[i].x > (laranja.x + laranja.width) || (blobs[i].x + blobs[i].width) < laranja.x))
+							!(blobs[i].x > (laranja.x + laranja.width) || (blobs[i].x + blobs[i].width) < laranja.x))
 						{
 							// caso nem esteja a direita nem a esquerda nem por cima nem por baixo então quer dizer qeu se trata da mesma laranja
 							// mas lijeiramente deslocada
@@ -265,6 +312,18 @@ int main(void)
 						numeroLaranja = nLaranjas;
 					}
 				}
+				for (int j = 0; j < nNegBlobs; j++)
+				{
+					if (negBlobs[j].area > 15000)
+					{
+						cv::Rect rect(negBlobs[j].x, negBlobs[j].y, negBlobs[j].width, negBlobs[j].height);
+
+						rectangle(frame, rect, (0, 0, 255), 1);
+					}
+				}
+
+				// desenhar o centro de massa da laranja
+				draw_center(frame, blobs[i].yc, blobs[i].xc, 25);
 
 				// Rect é uma classe que guarda informações sobre um retangulo
 				// sendo estas:
@@ -276,17 +335,24 @@ int main(void)
 				// Desenhar a bounding box de acordo com o retangulo criado anteriormente com o Rect
 				//  desenhar no próprim frame com uma linha azul e espesura de 2
 				rectangle(frame, rect, (255, 255, 255), 2);
-
+				if (video.nframe == 160 || video.nframe == 260 || video.nframe == 360 || video.nframe == 440 || video.nframe == 460 || video.nframe == 530)
+				{
+					char buffer[100];
+					snprintf(buffer, 100, "./img_%d.ppm", video.nframe);
+					memcpy(image->data, frame.data, video.width * video.height * 3);
+					vc_bgr_to_rgb(image);
+					vc_write_image(buffer, image);
+				}
 				char buffer[100];
 				char buffer1[100];
 				char buffer2[100];
 				snprintf(buffer, 100, "Laranja: %d   Calibre: %d", numeroLaranja, calibre);
-				snprintf(buffer1, 100, "Diametro: %d", blobs[i].width);
+				snprintf(buffer1, 100, "Perimetro: %d  Area: %d", blobs[i].perimeter, blobs[i].area);
 				snprintf(buffer2, 100, "NLaranjas: %d", nLaranjas);
 
 				// se o texto a escrever ficar fora dos limites da imagem para cima
 				// então este vai ser movido para baixo até haver espaço
-				if ((blobs[i].y - 70) < 0)
+				if ((blobs[i].y - 80) < 0)
 				{
 					// putText permite escrever texto em uma imagem
 					// putText necessita de:
@@ -297,9 +363,9 @@ int main(void)
 					//    - Foi dado também o inicio da imagem em y + a sua altura para se chegar o fim da imagem em y
 					//    - Foi também acrescentado valores para espaçar as diferentes strings
 					// -> Foi dado um tamanho de fonte de 0.7, uma cor azul e uma espessura de 2
-					putText(frame, buffer, Point(blobs[i].x, blobs[i].y + blobs[i].height + 80), 0, 0.7, (255, 255, 255), 2);
+					putText(frame, buffer, Point(blobs[i].x, blobs[i].y + blobs[i].height + 20), 0, 0.7, (255, 255, 255), 2);
 					putText(frame, buffer1, Point(blobs[i].x, blobs[i].y + blobs[i].height + 50), 0, 0.7, (255, 255, 255), 2);
-					putText(frame, buffer2, Point(blobs[i].x, blobs[i].y + blobs[i].height + 20), 0, 0.7, (255, 255, 255), 2);
+					putText(frame, buffer2, Point(blobs[i].x, blobs[i].y + blobs[i].height + 80), 0, 0.7, (255, 255, 255), 2);
 				}
 				else
 				{
@@ -310,14 +376,13 @@ int main(void)
 				}
 			}
 		}
+
 		// Liberta a memória da imagem IVC que havia sido criada
 		vc_image_free(image);
 		vc_image_free(image_rgb);
 		vc_image_free(image_hsv);
 		vc_image_free(segmentated);
-		vc_image_free(eroded);
-		vc_image_free(dilated);
-		vc_image_free(binary);
+		vc_image_free(center_draw);
 		vc_image_free(open);
 		vc_image_free(labled_image);
 

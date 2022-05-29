@@ -98,7 +98,7 @@ int vc_gray_negative(IVC *srcdst)
 	return 1;
 }
 
-float max(float a, float b, float c)
+float myMax(float a, float b, float c)
 {
 	if (a >= b && a >= c)
 	{
@@ -114,7 +114,7 @@ float max(float a, float b, float c)
 	}
 }
 
-float min(float a, float b, float c)
+float myMin(float a, float b, float c)
 {
 	if (a <= b && a <= c)
 	{
@@ -166,8 +166,8 @@ int vc_rgb_to_hsv(IVC *src, IVC *dst)
 			g = (float)datasrc[pos_src + 1];
 			b = (float)datasrc[pos_src + 2];
 
-			Max = max(r, g, b);
-			Min = min(r, g, b);
+			Max = myMax(r, g, b);
+			Min = myMin(r, g, b);
 			v = Max;
 			if (v == 0 || Min == Max)
 			{
@@ -968,8 +968,8 @@ int vc_binary_open(IVC *src, IVC *dst, int kernel_erode, int kernel_dilate)
 int vc_binary_close(IVC *src, IVC *dst, int kernel_erode, int kernel_dilate)
 {
 	IVC *tmp_image = vc_image_new(src->width, src->height, 1, 255);
-	vc_binary_dilate(src, tmp_image, kernel_erode);
-	vc_binary_erode(tmp_image, dst, kernel_dilate);
+	vc_binary_dilate(src, tmp_image, kernel_dilate);
+	vc_binary_erode(tmp_image, dst, kernel_erode);
 	vc_image_free(tmp_image);
 	return 1;
 }
@@ -1229,10 +1229,10 @@ OVC *vc_binary_blob_labelling(IVC *src, IVC *dst, int *nlabels)
 			// D X
 
 			posA = (y - 1) * bytesperline + (x - 1) * channels; // A
-			posB = (y - 1) * bytesperline + x * channels;				// B
+			posB = (y - 1) * bytesperline + x * channels;		// B
 			posC = (y - 1) * bytesperline + (x + 1) * channels; // C
-			posD = y * bytesperline + (x - 1) * channels;				// D
-			posX = y * bytesperline + x * channels;							// X
+			posD = y * bytesperline + (x - 1) * channels;		// D
+			posX = y * bytesperline + x * channels;				// X
 
 			// Se o pixel foi marcado
 			if (datadst[posX] != 0)
@@ -1355,7 +1355,7 @@ OVC *vc_binary_blob_labelling(IVC *src, IVC *dst, int *nlabels)
 		if (labeltable[a] != 0)
 		{
 			labeltable[*nlabels] = labeltable[a]; // Organiza tabela de etiquetas
-			(*nlabels)++;													// Conta etiquetas
+			(*nlabels)++;						  // Conta etiquetas
 		}
 	}
 
@@ -1773,48 +1773,48 @@ int *sort_array(int *array, int size)
 	}
 	return array;
 }
-
-int vc_gray_lowpass_median_filter(IVC *src, IVC *dst, int kernelsize)
-{
-	unsigned char *datasrc = (unsigned char *)src->data;
-	unsigned char *datadst = (unsigned char *)dst->data;
-	int width = src->width;
-	int height = src->height;
-	int bytesperline = src->bytesperline;
-	int channels = src->channels;
-	long int pos, posX;
-	int sum;
-
-	int values[kernelsize * kernelsize];
-	int valuesOrdered[kernelsize * kernelsize];
-	int count;
-	float brilho;
-	int offset = (kernelsize - 1) / 2;
-
-	for (int y = 1; y < height - 1; y++)
-	{
-		for (int x = 1; x < width - 1; x++)
-		{
-			sum = 0;
-			count = 0;
-			posX = y * bytesperline + x * channels;
-			for (int yk = -offset; yk <= offset; yk++)
-			{
-				for (int xk = -offset; xk <= offset; xk++)
-				{
-					if (((y + yk) >= 0 && (y + yk) < src->height) && ((x + xk) >= 0 && (x + xk) < src->width))
-					{
-						pos = (y + yk) * bytesperline + (x + xk) * channels;
-						values[count] = datasrc[pos];
-						count++;
-					}
-				}
-			}
-			int *valuesOrdered = sort_array(values, kernelsize * kernelsize);
-			datadst[posX] = valuesOrdered[(kernelsize * kernelsize) / 2];
-		}
-	}
-}
+//
+// int vc_gray_lowpass_median_filter(IVC* src, IVC* dst, int kernelsize)
+//{
+//	unsigned char* datasrc = (unsigned char*)src->data;
+//	unsigned char* datadst = (unsigned char*)dst->data;
+//	int width = src->width;
+//	int height = src->height;
+//	int bytesperline = src->bytesperline;
+//	int channels = src->channels;
+//	long int pos, posX;
+//	int sum;
+//
+//	int values[kernelsize * kernelsize];
+//	int valuesOrdered[kernelsize * kernelsize];
+//	int count;
+//	float brilho;
+//	int offset = (kernelsize - 1) / 2;
+//
+//	for (int y = 1; y < height - 1; y++)
+//	{
+//		for (int x = 1; x < width - 1; x++)
+//		{
+//			sum = 0;
+//			count = 0;
+//			posX = y * bytesperline + x * channels;
+//			for (int yk = -offset; yk <= offset; yk++)
+//			{
+//				for (int xk = -offset; xk <= offset; xk++)
+//				{
+//					if (((y + yk) >= 0 && (y + yk) < src->height) && ((x + xk) >= 0 && (x + xk) < src->width))
+//					{
+//						pos = (y + yk) * bytesperline + (x + xk) * channels;
+//						values[count] = datasrc[pos];
+//						count++;
+//					}
+//				}
+//			}
+//			int* valuesOrdered = sort_array(values, kernelsize * kernelsize);
+//			datadst[posX] = valuesOrdered[(kernelsize * kernelsize) / 2];
+//		}
+//	}
+//}
 
 int vc_gray_lowpass_gaussian_filter(IVC *src, IVC *dst)
 {
@@ -1827,11 +1827,11 @@ int vc_gray_lowpass_gaussian_filter(IVC *src, IVC *dst)
 	long int posX, pos;
 	int value, sum;
 	int matriz[5][5] = {
-			{1, 4, 7, 4, 1},
-			{4, 16, 26, 16, 4},
-			{7, 26, 41, 26, 7},
-			{4, 16, 26, 16, 4},
-			{1, 4, 7, 4, 1}};
+		{1, 4, 7, 4, 1},
+		{4, 16, 26, 16, 4},
+		{7, 26, 41, 26, 7},
+		{4, 16, 26, 16, 4},
+		{1, 4, 7, 4, 1}};
 
 	int offset = 2;
 
@@ -1869,9 +1869,9 @@ int vc_gray_highpass_filter(IVC *src, IVC *dst)
 	long int posX, pos;
 	int value, sum;
 	int matriz[3][3] = {
-			{-1, -1, -1},
-			{-1, 8, -1},
-			{-1, -1, -1}};
+		{-1, -1, -1},
+		{-1, 8, -1},
+		{-1, -1, -1}};
 
 	int offset = 1;
 
@@ -1909,9 +1909,9 @@ int vc_gray_highpass_filter_enhance(IVC *src, IVC *dst, int gain)
 	long int posX, pos;
 	int value, sum;
 	int matriz[3][3] = {
-			{-1, -1, -1},
-			{-1, 8, -1},
-			{-1, -1, -1}};
+		{-1, -1, -1},
+		{-1, 8, -1},
+		{-1, -1, -1}};
 
 	int offset = 1;
 
@@ -1988,7 +1988,7 @@ IVC *vc_read_image(char *filename)
 		if (levels == 1) // PBM
 		{
 			if (sscanf(netpbm_get_token(file, tok, sizeof(tok)), "%d", &width) != 1 ||
-					sscanf(netpbm_get_token(file, tok, sizeof(tok)), "%d", &height) != 1)
+				sscanf(netpbm_get_token(file, tok, sizeof(tok)), "%d", &height) != 1)
 			{
 #ifdef VC_DEBUG
 				printf("ERROR -> vc_read_image():\n\tFile is not a valid PBM file.\n\tBad size!\n");
@@ -2031,8 +2031,8 @@ IVC *vc_read_image(char *filename)
 		else // PGM ou PPM
 		{
 			if (sscanf(netpbm_get_token(file, tok, sizeof(tok)), "%d", &width) != 1 ||
-					sscanf(netpbm_get_token(file, tok, sizeof(tok)), "%d", &height) != 1 ||
-					sscanf(netpbm_get_token(file, tok, sizeof(tok)), "%d", &levels) != 1 || levels <= 0 || levels > 255)
+				sscanf(netpbm_get_token(file, tok, sizeof(tok)), "%d", &height) != 1 ||
+				sscanf(netpbm_get_token(file, tok, sizeof(tok)), "%d", &levels) != 1 || levels <= 0 || levels > 255)
 			{
 #ifdef VC_DEBUG
 				printf("ERROR -> vc_read_image():\n\tFile is not a valid PGM or PPM file.\n\tBad size!\n");
