@@ -165,109 +165,151 @@ int main(void)
 
 		// Copia dados de imagem da estrutura cv::Mat para uma estrutura IVC
 		memcpy(image->data, frame.data, video.width * video.height * 3);
-		// Executa uma função da nossa biblioteca vc
+
+		// inverter os canais de bgr para rgb
 		vc_bgr_to_rgb(image);
+
+		// converter rgb em hsv para ser possivel segmentar
 		vc_rgb_to_hsv(image, image_hsv);
 
 		// vc_hsv_segmentation(image_hsv, segmentated, 10, 30, 80, 100, 27, 80);
+		// aplicar a segmentação em hsv com os valores detetados no gimp
+		// -> hmin 10
+		// -> hmax 30
+		// -> smin 75
+		// -> smax 100
+		// -> vmin 25
+		// -> vmax 80
 		vc_hsv_segmentation(image_hsv, segmentated, 10, 30, 75, 100, 25, 80);
 
+		// aplicar o open pois existe algum ruido na imagem e convém remover com o erode
+		// mas também não se pode perder muito do tamanho da laranja neste processo
+		// sendo necessario aplicar um kernel igual para realizar o dilate
+
 		vc_binary_open(segmentated, open, 5, 5);
-		// vc_binary_erode(segmentated, eroded, 7);
+
+		// realizar o labelling sobre a imagem segmentada
 		blobs = vc_binary_blob_labelling(open, labled_image, &nBlobs);
 
+		// obter as informações sobre os blobs descobertos anteriormente
 		vc_binary_blob_info(labled_image, blobs, nBlobs);
 
-		if (i == 530 || i == 260 || i == 160 || i == 430 || i == 353)
-		{
-			char buffer[100];
-			char buffer1[100];
-			snprintf(buffer, 100, "./imgs/%i_seg.ppm", i);
-			snprintf(buffer1, 100, "./imgs/%i_op.ppm", i);
-			vc_write_image(buffer, segmentated);
-			vc_write_image(buffer1, open);
-		}
-
+		// converter em bgr novamente
 		vc_bgr_to_rgb(image);
 
 		// Copia dados de imagem da estrutura IVC para uma estrutura cv::Mat
 		memcpy(frame.data, image->data, video.width * video.height * 3);
 
+		// iterar pelos blobs encontrados
 		for (int i = 0; i < nBlobs; i++)
 		{
+			// valor que guarda o numero da laranja identificada para cada blob
 			int numeroLaranja;
+			// verificar se o blob tem tamanho suficente para ser identificado como uma laranja
 			if (blobs[i].height >= 280 && blobs[i].width >= 280)
 			{
+				// calcular o calibre da laranja tendo em conta o seu tamanho convertido em mm
 				int calibre = getCalibre((int)(blobs[i].width * 53) / 280);
+				// se ainda não tiverem sido detetadas laranjas então vamos inserir a primeira
 				if (nLaranjas == 0)
 				{
+					// incrementar o contador de laranjas
 					nLaranjas++;
+					// utilizar o contador de laranjas como key para o dicionario
+					// guardar a informação do blob da laranja
 					laranjas[nLaranjas] = blobs[i];
+					// alterar o numero da laranja pois descobrimos de qual laranja se trata
 					numeroLaranja = nLaranjas;
 				}
 				else
 				{
-					// implementar codigo de detertar se dentro de bounding box de alguma laranja
+					// iterar pelo dicionario de laranjas para ver se o blob atual poderá ser alguma das laranjas já existentes
+					// iniciar sempre a achar que a laranja não existe
 					bool existsLaranja = false;
 					for (auto &t : laranjas)
 					{
-
+						// numero dado à laranja
 						auto key = t.first;
+						// blob guardado
 						auto laranja = t.second;
-						int blobXEnd = blobs[i].x + blobs[i].width;
-						int laranjaXEnd = laranja.x + laranja.width;
 
+						// Verificar se:
+						// 	Em Y:
+						// 		-> Se o blob não está acima da laranja ou seja se este termina antes desta laranja começar
+						// 		-> Se o blob não está abaixo da laranja ou seja se este não começa depois do termino da laranja
+						// 	Em X:
+						//		-> Se o blob não está à esquerda ou seja se este não termina antes do da laranja
+						//		-> Se o blob não está à direita ou seja se este não começa depois do termino da laranja
 						if (!((blobs[i].y + blobs[i].height) < laranja.y || blobs[i].y > (laranja.y + laranja.height)) &&
 								!(blobs[i].x > (laranja.x + laranja.width) || (blobs[i].x + blobs[i].width) < laranja.x))
 						{
-
+							// caso nem esteja a direita nem a esquerda nem por cima nem por baixo então quer dizer qeu se trata da mesma laranja
+							// mas lijeiramente deslocada
+							// logo temos de guardar a nova posição desta laranja
 							laranjas[key] = blobs[i];
+							// alterar o numero da laranja pois já detetamos a qual laranja este blob pertence
 							numeroLaranja = key;
+							// marcar que a laranja existe para esta não ser criada
 							existsLaranja = true;
 						}
 					}
+					// caso não se tenha descoberto a laranja vamos então adicionar esta laranja às laranjas conhecidas
 					if (!existsLaranja)
 					{
-						printf("NOVA LARANJA!!\n");
+						// incrementar o contador de laranjas
 						nLaranjas++;
+						// utilizar o contador de laranjas como key para o dicionario
+						// guardar a informação do blob da laranja
 						laranjas[nLaranjas] = blobs[i];
+						// alterar o numero da laranja pois descobrimos de qual laranja se trata
 						numeroLaranja = nLaranjas;
 					}
 				}
 
+				// Rect é uma classe que guarda informações sobre um retangulo
+				// sendo estas:
+				// -> canto superior esquerdo (xInicial, yInicial)
+				// -> largura e altura (width, height)
+				// utilizando assim esta para guardar informações sobre o blob
 				cv::Rect rect(blobs[i].x, blobs[i].y, blobs[i].width, blobs[i].height);
+
+				// Desenhar a bounding box de acordo com o retangulo criado anteriormente com o Rect
+				//  desenhar no próprim frame com uma linha azul e espesura de 2
 				rectangle(frame, rect, (255, 255, 255), 2);
+
 				char buffer[100];
 				char buffer1[100];
 				char buffer2[100];
 				snprintf(buffer, 100, "Laranja: %d   Calibre: %d", numeroLaranja, calibre);
 				snprintf(buffer1, 100, "Diametro: %d", blobs[i].width);
 				snprintf(buffer2, 100, "NLaranjas: %d", nLaranjas);
+
+				// se o texto a escrever ficar fora dos limites da imagem para cima
+				// então este vai ser movido para baixo até haver espaço
 				if ((blobs[i].y - 70) < 0)
 				{
+					// putText permite escrever texto em uma imagem
+					// putText necessita de:
+					// 	-> imagem onde escrever, neste caso o frame
+					// 	-> string a escrever
+					//	-> Objeto Point que indica um ponto dando as suas coordenadas
+					// 		- Neste caso foi dado o inicio da imagem em x para ficar alinhado à esquerda
+					//    - Foi dado também o inicio da imagem em y + a sua altura para se chegar o fim da imagem em y
+					//    - Foi também acrescentado valores para espaçar as diferentes strings
+					// -> Foi dado um tamanho de fonte de 0.7, uma cor azul e uma espessura de 2
 					putText(frame, buffer, Point(blobs[i].x, blobs[i].y + blobs[i].height + 80), 0, 0.7, (255, 255, 255), 2);
 					putText(frame, buffer1, Point(blobs[i].x, blobs[i].y + blobs[i].height + 50), 0, 0.7, (255, 255, 255), 2);
 					putText(frame, buffer2, Point(blobs[i].x, blobs[i].y + blobs[i].height + 20), 0, 0.7, (255, 255, 255), 2);
 				}
 				else
 				{
-
+					// Assim como o putText acima apenas modificando que agora queremos escrever acima da imagem e não abaixo
 					putText(frame, buffer, Point(blobs[i].x, blobs[i].y - 70), 0, 0.7, (255, 255, 255), 2);
 					putText(frame, buffer1, Point(blobs[i].x, blobs[i].y - 40), 0, 0.7, (255, 255, 255), 2);
 					putText(frame, buffer2, Point(blobs[i].x, blobs[i].y - 10), 0, 0.7, (255, 255, 255), 2);
 				}
 			}
 		}
-
-		if (i == 530 || i == 260 || (i <= 160 && i >= 140) || i == 430 || i == 353)
-		{
-			char buffer[100];
-			memcpy(image->data, frame.data, video.width * video.height * 3);
-			vc_bgr_to_rgb(image);
-			snprintf(buffer, 100, "./imgs/%i.ppm", i);
-			vc_write_image(buffer, image);
-		}
-
 		// Liberta a memória da imagem IVC que havia sido criada
 		vc_image_free(image);
 		vc_image_free(image_rgb);
