@@ -17,8 +17,8 @@ typedef struct
 {
 	unsigned char *data;
 	int width, height;
-	int channels;			// Binário/Cinzentos=1; RGB=3
-	int levels;				// Binário=1; Cinzentos [1,255]; RGB [1,255]
+	int channels;	  // Binário/Cinzentos=1; RGB=3
+	int levels;		  // Binário=1; Cinzentos [1,255]; RGB [1,255]
 	int bytesperline; // width * channels
 } IVC;
 
@@ -29,10 +29,10 @@ typedef struct
 typedef struct
 {
 	int x, y, width, height; // Caixa Delimitadora (Bounding Box)
-	int area;								 // �rea
-	int xc, yc;							 // Centro-de-massa
-	int perimeter;					 // Per�metro
-	int label;							 // Etiqueta
+	int area;				 // �rea
+	int xc, yc;				 // Centro-de-massa
+	int perimeter;			 // Per�metro
+	int label;				 // Etiqueta
 } OVC;
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
