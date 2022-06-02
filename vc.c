@@ -98,7 +98,7 @@ int vc_gray_negative(IVC *srcdst)
 	return 1;
 }
 
-float max(float a, float b, float c)
+float myMax(float a, float b, float c)
 {
 	if (a >= b && a >= c)
 	{
@@ -114,7 +114,7 @@ float max(float a, float b, float c)
 	}
 }
 
-float min(float a, float b, float c)
+float myMin(float a, float b, float c)
 {
 	if (a <= b && a <= c)
 	{
@@ -166,8 +166,8 @@ int vc_rgb_to_hsv(IVC *src, IVC *dst)
 			g = (float)datasrc[pos_src + 1];
 			b = (float)datasrc[pos_src + 2];
 
-			Max = max(r, g, b);
-			Min = min(r, g, b);
+			Max = myMax(r, g, b);
+			Min = myMin(r, g, b);
 			v = Max;
 			if (v == 0 || Min == Max)
 			{
@@ -968,8 +968,8 @@ int vc_binary_open(IVC *src, IVC *dst, int kernel_erode, int kernel_dilate)
 int vc_binary_close(IVC *src, IVC *dst, int kernel_erode, int kernel_dilate)
 {
 	IVC *tmp_image = vc_image_new(src->width, src->height, 1, 255);
-	vc_binary_dilate(src, tmp_image, kernel_erode);
-	vc_binary_erode(tmp_image, dst, kernel_dilate);
+	vc_binary_dilate(src, tmp_image, kernel_dilate);
+	vc_binary_erode(tmp_image, dst, kernel_erode);
 	vc_image_free(tmp_image);
 	return 1;
 }
@@ -1376,6 +1376,51 @@ OVC *vc_binary_blob_labelling(IVC *src, IVC *dst, int *nlabels)
 	return blobs;
 }
 
+double checkCategoria(char categoria)
+{
+}
+
+double checkHVariance(IVC *src, IVC *segmented, int xi, int yi, int width, int height, int area)
+{
+	int bytesperline = src->bytesperline;
+	int bytesperlineSeg = segmented->bytesperline;
+	int channels = src->channels;
+	int channelsSeg = segmented->channels;
+	int h, hmin = -1, hmax = -1;
+	int sumH = 0, sumHi = 0;
+	float media = 0;
+	long int pos, posSeg;
+	for (int y = yi; y <= (yi + height); y++)
+	{
+		for (int x = xi; x <= (xi + width); x++)
+		{
+			pos = y * bytesperline + x * channels;
+			posSeg = y * bytesperlineSeg + x * channelsSeg;
+			if (segmented->data[posSeg] != 0)
+			{
+				sumH += src->data[pos];
+			}
+		}
+	}
+	media = sumH / (float)area;
+
+	for (int y = yi; y <= (yi + height); y++)
+	{
+		for (int x = xi; x <= (xi + width); x++)
+		{
+			pos = y * bytesperline + x * channels;
+			posSeg = y * bytesperlineSeg + x * channelsSeg;
+			h = src->data[pos];
+			if (segmented->data[posSeg] != 0)
+			{
+				sumHi += pow((h - media), 2);
+			}
+		}
+	}
+
+	return sqrt(sumHi / (float)area);
+}
+
 int vc_binary_blob_info(IVC *src, OVC *blobs, int nblobs)
 {
 	unsigned char *data = (unsigned char *)src->data;
@@ -1773,48 +1818,48 @@ int *sort_array(int *array, int size)
 	}
 	return array;
 }
-
-int vc_gray_lowpass_median_filter(IVC *src, IVC *dst, int kernelsize)
-{
-	unsigned char *datasrc = (unsigned char *)src->data;
-	unsigned char *datadst = (unsigned char *)dst->data;
-	int width = src->width;
-	int height = src->height;
-	int bytesperline = src->bytesperline;
-	int channels = src->channels;
-	long int pos, posX;
-	int sum;
-
-	int values[kernelsize * kernelsize];
-	int valuesOrdered[kernelsize * kernelsize];
-	int count;
-	float brilho;
-	int offset = (kernelsize - 1) / 2;
-
-	for (int y = 1; y < height - 1; y++)
-	{
-		for (int x = 1; x < width - 1; x++)
-		{
-			sum = 0;
-			count = 0;
-			posX = y * bytesperline + x * channels;
-			for (int yk = -offset; yk <= offset; yk++)
-			{
-				for (int xk = -offset; xk <= offset; xk++)
-				{
-					if (((y + yk) >= 0 && (y + yk) < src->height) && ((x + xk) >= 0 && (x + xk) < src->width))
-					{
-						pos = (y + yk) * bytesperline + (x + xk) * channels;
-						values[count] = datasrc[pos];
-						count++;
-					}
-				}
-			}
-			int *valuesOrdered = sort_array(values, kernelsize * kernelsize);
-			datadst[posX] = valuesOrdered[(kernelsize * kernelsize) / 2];
-		}
-	}
-}
+//
+// int vc_gray_lowpass_median_filter(IVC* src, IVC* dst, int kernelsize)
+//{
+//	unsigned char* datasrc = (unsigned char*)src->data;
+//	unsigned char* datadst = (unsigned char*)dst->data;
+//	int width = src->width;
+//	int height = src->height;
+//	int bytesperline = src->bytesperline;
+//	int channels = src->channels;
+//	long int pos, posX;
+//	int sum;
+//
+//	int values[kernelsize * kernelsize];
+//	int valuesOrdered[kernelsize * kernelsize];
+//	int count;
+//	float brilho;
+//	int offset = (kernelsize - 1) / 2;
+//
+//	for (int y = 1; y < height - 1; y++)
+//	{
+//		for (int x = 1; x < width - 1; x++)
+//		{
+//			sum = 0;
+//			count = 0;
+//			posX = y * bytesperline + x * channels;
+//			for (int yk = -offset; yk <= offset; yk++)
+//			{
+//				for (int xk = -offset; xk <= offset; xk++)
+//				{
+//					if (((y + yk) >= 0 && (y + yk) < src->height) && ((x + xk) >= 0 && (x + xk) < src->width))
+//					{
+//						pos = (y + yk) * bytesperline + (x + xk) * channels;
+//						values[count] = datasrc[pos];
+//						count++;
+//					}
+//				}
+//			}
+//			int* valuesOrdered = sort_array(values, kernelsize * kernelsize);
+//			datadst[posX] = valuesOrdered[(kernelsize * kernelsize) / 2];
+//		}
+//	}
+//}
 
 int vc_gray_lowpass_gaussian_filter(IVC *src, IVC *dst)
 {

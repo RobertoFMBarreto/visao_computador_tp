@@ -117,3 +117,4 @@ int vc_gray_highpass_filter(IVC *src, IVC *dst);
 int vc_gray_highpass_filter_enhance(IVC *src, IVC *dst, int gain);
 
 int vc_bgr_to_rgb(IVC *src);
+double checkHVariance(IVC *src, IVC *segmented, int xi, int yi, int width, int height, int area);
